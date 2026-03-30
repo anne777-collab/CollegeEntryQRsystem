@@ -1,7 +1,6 @@
 from pathlib import Path
 from typing import List
 
-from fastapi import FastAPI
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -180,3 +179,36 @@ def get_students(db: Session = Depends(get_db)) -> List[StudentResponse]:
         select(Student).order_by(Student.created_at.desc())
     ).scalars().all()
     return students
+
+
+@app.delete("/student/{student_id}")
+def delete_student(student_id: int, db: Session = Depends(get_db)) -> dict:
+    student = db.get(Student, student_id)
+    if student is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Student not found.",
+        )
+
+    qr_file_name = f"{safe_filename(student.roll_no)}_{student.token}.png"
+    qr_file_path = QR_CODES_DIR / qr_file_name
+
+    try:
+        db.delete(student)
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to delete the student record.",
+        ) from exc
+
+    try:
+        qr_file_path.unlink(missing_ok=True)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Student was deleted, but the QR image file could not be removed.",
+        ) from exc
+
+    return {"message": "Student deleted successfully."}

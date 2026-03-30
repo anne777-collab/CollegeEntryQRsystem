@@ -283,7 +283,7 @@ function renderStudents(students, activeFilter) {
     });
 
     if (!filteredStudents.length) {
-        tableBody.innerHTML = '<tr><td colspan="6" class="empty-state">No students match the current filter.</td></tr>';
+        tableBody.innerHTML = '<tr><td colspan="7" class="empty-state">No students match the current filter.</td></tr>';
         return;
     }
 
@@ -301,6 +301,11 @@ function renderStudents(students, activeFilter) {
                         </span>
                     </td>
                     <td>${escapeHtml(formatDate(student.created_at))}</td>
+                    <td>
+                        <button type="button" class="delete-button" data-delete-student="${student.id}">
+                            Delete
+                        </button>
+                    </td>
                 </tr>
             `
         )
@@ -327,6 +332,7 @@ function initAdminPage() {
     const message = document.getElementById("adminMessage");
     const searchRoll = document.getElementById("searchRoll");
     const refreshButton = document.getElementById("refreshStudents");
+    const tableBody = document.getElementById("studentsTableBody");
     const filterButtons = document.querySelectorAll(".filter-chip");
     let students = [];
     let activeFilter = "all";
@@ -341,13 +347,45 @@ function initAdminPage() {
             renderStudents(students, activeFilter);
             setMessage(message, `${students.length} students loaded.`, "success");
         } catch (error) {
-            document.getElementById("studentsTableBody").innerHTML =
-                '<tr><td colspan="6" class="empty-state">Unable to load student data.</td></tr>';
+            tableBody.innerHTML =
+                '<tr><td colspan="7" class="empty-state">Unable to load student data.</td></tr>';
             setMessage(message, error.message, "error");
         } finally {
             refreshButton.disabled = false;
         }
     }
+
+    tableBody.addEventListener("click", async (event) => {
+        const deleteButton = event.target.closest("[data-delete-student]");
+        if (!deleteButton) {
+            return;
+        }
+
+        const studentId = deleteButton.dataset.deleteStudent;
+        if (!window.confirm("Are you sure you want to delete this student?")) {
+            return;
+        }
+
+        deleteButton.disabled = true;
+        deleteButton.textContent = "Deleting...";
+
+        try {
+            const data = await parseJsonResponse(
+                await fetch(`/student/${studentId}`, {
+                    method: "DELETE",
+                })
+            );
+
+            students = students.filter((student) => String(student.id) !== studentId);
+            updateAdminStats(students);
+            renderStudents(students, activeFilter);
+            setMessage(message, data.message, "success");
+        } catch (error) {
+            deleteButton.disabled = false;
+            deleteButton.textContent = "Delete";
+            setMessage(message, error.message, "error");
+        }
+    });
 
     searchRoll.addEventListener("input", () => renderStudents(students, activeFilter));
 
