@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scan QR for Entry</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://unpkg.com/html5-qrcode" defer></script>
+</head>
+<body data-page="scanner" class="protected-page scanner-page">
+    <div id="authOverlay" class="auth-overlay">
+        <div class="auth-card glass-panel fade-scale">
+            <p class="section-tag">Restricted Page</p>
+            <h2>Authorized Access Only</h2>
+            <p class="section-copy">Enter the scanner password to continue.</p>
+            <form id="authForm" class="auth-form">
+                <label class="input-group">
+                    <span>Password</span>
+                    <input id="authPassword" type="password" placeholder="Enter password" autocomplete="current-password" required>
+                </label>
+                <button type="submit" class="primary-button primary-button--wide">Unlock Scanner</button>
+                <div id="authError" class="auth-error" aria-live="polite"></div>
+            </form>
+        </div>
+    </div>
+
+    <div id="protectedContent" class="protected-content" aria-hidden="true">
+        <div class="page-shell page-shell--wide">
+            <header class="hero hero--split hero--compact fade-up">
+                <div class="hero-copy-block">
+                    <p class="eyebrow">Gate Access</p>
+                    <h1>Scan QR for Entry</h1>
+                    <p class="hero-copy">Keep the line moving with instant validation, strong visual feedback, and mobile-friendly scanning.</p>
+                </div>
+                <div class="nav-chips nav-chips--actions">
+                    <a class="nav-chip" href="/">Registration</a>
+                    <a class="nav-chip nav-chip--active" href="/scanner">Scanner</a>
+                    <a class="nav-chip" href="/admin">Admin</a>
+                    <button type="button" class="nav-chip nav-chip--button" data-lock-session>Lock Page</button>
+                </div>
+            </header>
+
+            <main class="scanner-stage">
+                <section class="glass-panel scanner-panel fade-up">
+                    <div class="panel-heading panel-heading--row">
+                        <div>
+                            <p class="section-tag">Live Scanner</p>
+                            <h2>Camera Preview</h2>
+                        </div>
+                        <div class="live-pill">Live</div>
+                    </div>
+                    <div id="scannerViewport" class="scanner-viewport"></div>
+                    <div id="scannerHint" class="inline-meta">Allow camera access to begin scanning.</div>
+                </section>
+
+                <section class="glass-panel result-panel fade-up fade-up--delay">
+                    <div class="panel-heading">
+                        <p class="section-tag">Verification</p>
+                        <h2>Scan Result</h2>
+                    </div>
+                    <div id="scanStatus" class="scan-status neutral">
+                        <span class="status-pill">Ready</span>
+                        <h3 id="scanTitle">Waiting for scan</h3>
+                        <p id="scanMessage">The scanned QR token will be checked instantly against the existing entry system.</p>
+                    </div>
+                    <div class="scanner-note">Beep enabled. Scan lock prevents repeated triggers while a result is being processed.</div>
+                </section>
+            </main>
+        </div>
+    </div>
+
+    <script src="/static/script.js"></script>
+</body>
+</html>

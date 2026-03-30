@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>College Event Entry System</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body data-page="registration">
+    <div class="page-shell page-shell--centered">
+        <header class="hero hero--split">
+            <div class="hero-copy-block fade-up">
+                <p class="eyebrow">Modern Event Check-In</p>
+                <h1>🎉 College Event Entry System</h1>
+                <p class="hero-copy">Register students in seconds, issue secure QR passes, and keep the entry flow smooth for large event crowds.</p>
+                <div class="nav-chips">
+                    <a class="nav-chip nav-chip--active" href="/">Registration</a>
+                    <a class="nav-chip" href="/scanner">Scanner</a>
+                    <a class="nav-chip" href="/admin">Admin</a>
+                </div>
+            </div>
+        </header>
+
+        <main class="registration-grid">
+            <section class="glass-panel info-panel fade-up">
+                <p class="section-tag">Quick Setup</p>
+                <h2>Register and get your QR pass</h2>
+                <p class="section-copy">Each registration generates a single-use QR linked to a unique token. Students only need to show the code at the gate.</p>
+                <div class="feature-list">
+                    <div class="feature-item">
+                        <strong>Fast registration</strong>
+                        <span>Minimal fields and instant QR generation.</span>
+                    </div>
+                    <div class="feature-item">
+                        <strong>Single-use entry</strong>
+                        <span>Designed to stop duplicate scans at the gate.</span>
+                    </div>
+                    <div class="feature-item">
+                        <strong>Mobile-ready</strong>
+                        <span>Works smoothly for volunteers and organizers on phones.</span>
+                    </div>
+                </div>
+            </section>
+
+            <section class="glass-panel form-panel fade-up fade-up--delay">
+                <div class="panel-heading">
+                    <p class="section-tag">Registration Form</p>
+                    <h2>Student Details</h2>
+                </div>
+
+                <form id="registrationForm" class="form-grid">
+                    <label class="input-group">
+                        <span>Name</span>
+                        <input type="text" name="name" placeholder="Enter full name" required>
+                    </label>
+                    <label class="input-group">
+                        <span>Roll No</span>
+                        <input type="text" name="roll_no" placeholder="Enter roll number" required>
+                    </label>
+                    <label class="input-group">
+                        <span>Course</span>
+                        <input type="text" name="course" placeholder="Enter course name" required>
+                    </label>
+                    <label class="input-group">
+                        <span>Contact</span>
+                        <input type="text" name="contact" placeholder="Enter phone number" required>
+                    </label>
+                    <button id="registrationSubmit" type="submit" class="primary-button primary-button--wide">
+                        <span class="button-label">Generate QR Pass</span>
+                        <span class="button-loader" aria-hidden="true"></span>
+                    </button>
+                </form>
+
+                <div id="registrationMessage" class="inline-message" aria-live="polite"></div>
+            </section>
+        </main>
+
+        <section id="registrationResult" class="glass-panel success-panel hidden fade-up">
+            <div class="success-headline">
+                <div>
+                    <p class="section-tag">Pass Generated</p>
+                    <h2>✅ Registration Successful</h2>
+                </div>
+                <p class="section-copy">Show this QR at entry. The code can be scanned only once.</p>
+            </div>
+
+            <div class="success-content">
+                <div class="qr-stage">
+                    <div class="qr-frame">
+                        <img id="qrImage" alt="Generated QR code">
+                    </div>
+                </div>
+                <div class="success-details">
+                    <div class="token-card">
+                        <span>Token</span>
+                        <strong id="resultToken">-</strong>
+                    </div>
+                    <div class="instruction-pill">Show this QR at entry</div>
+                    <a id="downloadQrButton" class="secondary-button secondary-button--wide" download>Download QR</a>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script src="/static/script.js"></script>
+</body>
+</html>

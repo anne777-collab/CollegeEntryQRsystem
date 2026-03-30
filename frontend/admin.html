@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body data-page="admin" class="protected-page admin-page">
+    <div id="authOverlay" class="auth-overlay">
+        <div class="auth-card glass-panel fade-scale">
+            <p class="section-tag">Restricted Page</p>
+            <h2>Authorized Access Only</h2>
+            <p class="section-copy">Enter the admin password to view the dashboard.</p>
+            <form id="authForm" class="auth-form">
+                <label class="input-group">
+                    <span>Password</span>
+                    <input id="authPassword" type="password" placeholder="Enter password" autocomplete="current-password" required>
+                </label>
+                <button type="submit" class="primary-button primary-button--wide">Unlock Dashboard</button>
+                <div id="authError" class="auth-error" aria-live="polite"></div>
+            </form>
+        </div>
+    </div>
+
+    <div id="protectedContent" class="protected-content" aria-hidden="true">
+        <div class="page-shell page-shell--wide">
+            <header class="hero hero--split hero--compact fade-up">
+                <div class="hero-copy-block">
+                    <p class="eyebrow">Operations Dashboard</p>
+                    <h1>Admin Dashboard</h1>
+                    <p class="hero-copy">Track registrations, monitor gate usage, and find students quickly during the event.</p>
+                </div>
+                <div class="nav-chips nav-chips--actions">
+                    <a class="nav-chip" href="/">Registration</a>
+                    <a class="nav-chip" href="/scanner">Scanner</a>
+                    <a class="nav-chip nav-chip--active" href="/admin">Admin</a>
+                    <button type="button" class="nav-chip nav-chip--button" data-lock-session>Lock Page</button>
+                </div>
+            </header>
+
+            <main class="dashboard-grid">
+                <section class="stats-grid fade-up">
+                    <article class="glass-panel stat-card">
+                        <span>Total Students</span>
+                        <strong id="statTotal">0</strong>
+                        <p>Registered passes created</p>
+                    </article>
+                    <article class="glass-panel stat-card">
+                        <span>Used Entries</span>
+                        <strong id="statUsed">0</strong>
+                        <p>Students already checked in</p>
+                    </article>
+                    <article class="glass-panel stat-card">
+                        <span>Remaining Entries</span>
+                        <strong id="statRemaining">0</strong>
+                        <p>Passes still available to scan</p>
+                    </article>
+                </section>
+
+                <section class="glass-panel controls-panel fade-up fade-up--delay">
+                    <div class="panel-heading panel-heading--row">
+                        <div>
+                            <p class="section-tag">Controls</p>
+                            <h2>Search and Filter</h2>
+                        </div>
+                        <button id="refreshStudents" type="button" class="secondary-button">Refresh Data</button>
+                    </div>
+
+                    <div class="dashboard-toolbar">
+                        <label class="input-group input-group--search">
+                            <span>Search by Roll Number</span>
+                            <input id="searchRoll" type="text" placeholder="Type roll number">
+                        </label>
+                        <div class="filter-group" aria-label="Student status filter">
+                            <button type="button" class="filter-chip active" data-filter="all">All</button>
+                            <button type="button" class="filter-chip" data-filter="used">Used</button>
+                            <button type="button" class="filter-chip" data-filter="not-used">Not Used</button>
+                        </div>
+                    </div>
+
+                    <div id="adminMessage" class="inline-message" aria-live="polite"></div>
+                </section>
+
+                <section class="glass-panel table-panel fade-up fade-up--delay-2">
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Roll No</th>
+                                    <th>Course</th>
+                                    <th>Contact</th>
+                                    <th>Status</th>
+                                    <th>Created At</th>
+                                </tr>
+                            </thead>
+                            <tbody id="studentsTableBody">
+                                <tr>
+                                    <td colspan="6" class="empty-state">Loading students...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </main>
+        </div>
+    </div>
+
+    <script src="/static/script.js"></script>
+</body>
+</html>
