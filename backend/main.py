@@ -51,6 +51,9 @@ def build_qr_file_name(roll_no: str, token: str) -> str:
 
 
 def ensure_database_schema() -> None:
+    if engine.dialect.name != "sqlite":
+        return
+
     with engine.begin() as connection:
         columns = {
             row[1] for row in connection.exec_driver_sql("PRAGMA table_info(students)").fetchall()
@@ -316,5 +319,6 @@ def delete_student(student_id: int, db: Session = Depends(get_db)) -> dict:
         ) from exc
 
     return {"message": "Student deleted successfully."}
+
 
 
