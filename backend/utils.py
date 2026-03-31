@@ -1,7 +1,7 @@
 import re
 import secrets
 import string
-from pathlib import Path
+import io
 
 import qrcode
 
@@ -19,7 +19,7 @@ def safe_filename(value: str) -> str:
     return cleaned.strip("_") or "student"
 
 
-def save_qr_code(token: str, destination: Path) -> None:
+def generate_qr_image(token: str) -> io.BytesIO:
     qr = qrcode.QRCode(
         version=1,
         error_correction=qrcode.constants.ERROR_CORRECT_M,
@@ -30,5 +30,7 @@ def save_qr_code(token: str, destination: Path) -> None:
     qr.make(fit=True)
 
     image = qr.make_image(fill_color="black", back_color="white")
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    image.save(destination)
+    buffer = io.BytesIO()
+    image.save(buffer, format="PNG")
+    buffer.seek(0)
+    return buffer

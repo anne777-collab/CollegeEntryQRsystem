@@ -27,7 +27,7 @@ function safeFileName(value) {
 }
 
 function buildStudentQrUrl(student) {
-    return `/qr_codes/${safeFileName(student.roll_no)}_${student.token}.png`;
+    return `/qr/${encodeURIComponent(student.token)}`;
 }
 
 function setButtonLoading(button, isLoading, loadingLabel = "Loading...") {
@@ -633,4 +633,6 @@ document.addEventListener("DOMContentLoaded", () => {
         protectPage(initAdminPage);
     }
 });
+
+
 

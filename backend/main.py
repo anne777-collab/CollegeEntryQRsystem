@@ -23,17 +23,15 @@ from backend.schemas import (
     VerifyQRRequest,
     VerifyQRResponse,
 )
-from backend.utils import generate_token, safe_filename, save_qr_code
+from backend.utils import generate_qr_image, generate_token
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 FRONTEND_DIR = BASE_DIR / "frontend"
-QR_CODES_DIR = BASE_DIR / "qr_codes"
 
 
 def ensure_app_directories() -> None:
     FRONTEND_DIR.mkdir(parents=True, exist_ok=True)
-    QR_CODES_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def sanitize_input(value: str, field_name: str) -> str:
@@ -44,10 +42,6 @@ def sanitize_input(value: str, field_name: str) -> str:
             detail=f"{field_name} cannot be empty.",
         )
     return cleaned
-
-
-def build_qr_file_name(roll_no: str, token: str) -> str:
-    return f"{safe_filename(roll_no)}_{token}.png"
 
 
 def ensure_database_schema() -> None:
@@ -81,7 +75,6 @@ app.add_middleware(
 )
 
 app.mount("/static", StaticFiles(directory="frontend"), name="static")
-app.mount("/qr_codes", StaticFiles(directory="qr_codes"), name="qr_codes")
 
 
 @app.get("/", include_in_schema=False)
@@ -104,6 +97,12 @@ def health_check() -> dict:
     return {"status": "ok"}
 
 
+@app.get("/qr/{token}")
+def get_qr(token: str) -> StreamingResponse:
+    qr_buffer = generate_qr_image(token)
+    return StreamingResponse(qr_buffer, media_type="image/png")
+
+
 @app.post("/register", response_model=RegisterStudentResponse, status_code=status.HTTP_201_CREATED)
 def register_student(payload: RegisterStudentRequest, db: Session = Depends(get_db)) -> RegisterStudentResponse:
     name = sanitize_input(payload.name, "Name")
@@ -124,8 +123,6 @@ def register_student(payload: RegisterStudentRequest, db: Session = Depends(get_
     while db.execute(select(Student).where(Student.token == token)).scalar_one_or_none():
         token = generate_token()
 
-    qr_file_name = build_qr_file_name(roll_no, token)
-    qr_file_path = QR_CODES_DIR / qr_file_name
     student = Student(
         name=name,
         roll_no=roll_no,
@@ -137,29 +134,24 @@ def register_student(payload: RegisterStudentRequest, db: Session = Depends(get_
     try:
         db.add(student)
         db.flush()
-        save_qr_code(token, qr_file_path)
         db.commit()
     except IntegrityError:
         db.rollback()
-        if qr_file_path.exists():
-            qr_file_path.unlink(missing_ok=True)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Unable to register student because the roll number or token already exists.",
         )
     except Exception as exc:
         db.rollback()
-        if qr_file_path.exists():
-            qr_file_path.unlink(missing_ok=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to generate QR code for the student.",
+            detail="Failed to register the student.",
         ) from exc
 
     return RegisterStudentResponse(
         message="Student registered successfully.",
         token=token,
-        qr_code_url=f"/qr_codes/{qr_file_name}",
+        qr_code_url=f"/qr/{token}",
     )
 
 
@@ -297,9 +289,6 @@ def delete_student(student_id: int, db: Session = Depends(get_db)) -> dict:
             detail="Student not found.",
         )
 
-    qr_file_name = build_qr_file_name(student.roll_no, student.token)
-    qr_file_path = QR_CODES_DIR / qr_file_name
-
     try:
         db.delete(student)
         db.commit()
@@ -310,15 +299,4 @@ def delete_student(student_id: int, db: Session = Depends(get_db)) -> dict:
             detail="Failed to delete the student record.",
         ) from exc
 
-    try:
-        qr_file_path.unlink(missing_ok=True)
-    except Exception as exc:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Student was deleted, but the QR image file could not be removed.",
-        ) from exc
-
     return {"message": "Student deleted successfully."}
-
-
-
