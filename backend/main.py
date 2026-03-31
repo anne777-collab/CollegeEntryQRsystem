@@ -1,9 +1,12 @@
+import csv
+import io
+from datetime import datetime
 from pathlib import Path
 from typing import List
 
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
@@ -12,8 +15,10 @@ from sqlalchemy.orm import Session
 from backend.database import Base, engine, get_db
 from backend.models import Student
 from backend.schemas import (
+    EntryActionResponse,
     RegisterStudentRequest,
     RegisterStudentResponse,
+    ResetEntryResponse,
     StudentResponse,
     VerifyQRRequest,
     VerifyQRResponse,
@@ -41,8 +46,22 @@ def sanitize_input(value: str, field_name: str) -> str:
     return cleaned
 
 
+def build_qr_file_name(roll_no: str, token: str) -> str:
+    return f"{safe_filename(roll_no)}_{token}.png"
+
+
+def ensure_database_schema() -> None:
+    with engine.begin() as connection:
+        columns = {
+            row[1] for row in connection.exec_driver_sql("PRAGMA table_info(students)").fetchall()
+        }
+        if "entry_at" not in columns:
+            connection.exec_driver_sql("ALTER TABLE students ADD COLUMN entry_at DATETIME")
+
+
 ensure_app_directories()
 Base.metadata.create_all(bind=engine)
+ensure_database_schema()
 
 app = FastAPI(
     title="College Event QR Entry System",
@@ -104,7 +123,7 @@ def register_student(payload: RegisterStudentRequest, db: Session = Depends(get_
     while db.execute(select(Student).where(Student.token == token)).scalar_one_or_none():
         token = generate_token()
 
-    qr_file_name = f"{safe_filename(roll_no)}_{token}.png"
+    qr_file_name = build_qr_file_name(roll_no, token)
     qr_file_path = QR_CODES_DIR / qr_file_name
     student = Student(
         name=name,
@@ -151,7 +170,7 @@ def verify_qr(payload: VerifyQRRequest, db: Session = Depends(get_db)) -> Verify
         result = db.execute(
             update(Student)
             .where(Student.token == token, Student.is_used.is_(False))
-            .values(is_used=True)
+            .values(is_used=True, entry_at=datetime.utcnow())
         )
 
         if result.rowcount == 1:
@@ -173,12 +192,99 @@ def verify_qr(payload: VerifyQRRequest, db: Session = Depends(get_db)) -> Verify
         ) from exc
 
 
+@app.post("/manual-entry/{student_id}", response_model=EntryActionResponse)
+def manual_entry(student_id: int, db: Session = Depends(get_db)) -> EntryActionResponse:
+    student = db.get(Student, student_id)
+    if student is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Student not found.",
+        )
+
+    if student.is_used:
+        return EntryActionResponse(
+            status="USED",
+            message="Student is already marked present.",
+            entry_at=student.entry_at,
+        )
+
+    try:
+        student.is_used = True
+        student.entry_at = student.entry_at or datetime.utcnow()
+        db.commit()
+        db.refresh(student)
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to mark the student present.",
+        ) from exc
+
+    return EntryActionResponse(
+        status="VALID",
+        message="Student marked present successfully.",
+        entry_at=student.entry_at,
+    )
+
+
+@app.post("/reset-entry/{student_id}", response_model=ResetEntryResponse)
+def reset_entry(student_id: int, db: Session = Depends(get_db)) -> ResetEntryResponse:
+    student = db.get(Student, student_id)
+    if student is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Student not found.",
+        )
+
+    try:
+        student.is_used = False
+        student.entry_at = None
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to reset the student entry.",
+        ) from exc
+
+    return ResetEntryResponse(
+        message="Entry reset successfully.",
+        entry_at=None,
+    )
+
+
 @app.get("/students", response_model=List[StudentResponse])
 def get_students(db: Session = Depends(get_db)) -> List[StudentResponse]:
     students = db.execute(
         select(Student).order_by(Student.created_at.desc())
     ).scalars().all()
     return students
+
+
+@app.get("/export")
+def export_students(db: Session = Depends(get_db)) -> StreamingResponse:
+    students = db.execute(
+        select(Student).order_by(Student.created_at.desc())
+    ).scalars().all()
+
+    buffer = io.StringIO()
+    buffer.write("\ufeff")
+    writer = csv.writer(buffer)
+    writer.writerow(["name", "roll_no", "course", "contact", "is_used", "created_at"])
+
+    for student in students:
+        writer.writerow([
+            student.name,
+            student.roll_no,
+            student.course,
+            student.contact,
+            student.is_used,
+            student.created_at.isoformat(),
+        ])
+
+    csv_content = buffer.getvalue()
+    headers = {"Content-Disposition": 'attachment; filename="students_export.csv"'}
+    return StreamingResponse(iter([csv_content]), media_type="text/csv", headers=headers)
 
 
 @app.delete("/student/{student_id}")
@@ -190,7 +296,7 @@ def delete_student(student_id: int, db: Session = Depends(get_db)) -> dict:
             detail="Student not found.",
         )
 
-    qr_file_name = f"{safe_filename(student.roll_no)}_{student.token}.png"
+    qr_file_name = build_qr_file_name(student.roll_no, student.token)
     qr_file_path = QR_CODES_DIR / qr_file_name
 
     try:
@@ -212,3 +318,4 @@ def delete_student(student_id: int, db: Session = Depends(get_db)) -> dict:
         ) from exc
 
     return {"message": "Student deleted successfully."}
+

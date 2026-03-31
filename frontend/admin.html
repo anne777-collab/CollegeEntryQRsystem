@@ -5,36 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard</title>
     <link rel="stylesheet" href="/static/style.css">
-    <style>
-        .delete-button {
-            min-height: 38px;
-            padding: 0 14px;
-            border: 1px solid rgba(244, 67, 54, 0.42);
-            border-radius: 12px;
-            background: rgba(244, 67, 54, 0.16);
-            color: #ffd9d5;
-            font-size: 0.82rem;
-            font-weight: 700;
-            cursor: pointer;
-            transition: transform 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
-        }
-
-        .delete-button:hover {
-            transform: translateY(-1px);
-            background: rgba(244, 67, 54, 0.24);
-            box-shadow: 0 10px 20px rgba(244, 67, 54, 0.16);
-        }
-
-        .delete-button:disabled {
-            opacity: 0.7;
-            cursor: not-allowed;
-            transform: none;
-            box-shadow: none;
-        }
-    </style>
 </head>
 <body data-page="admin" class="protected-page admin-page">
-    <div id="authOverlay" class="auth-overlay">
+    <div id="loginOverlay" class="auth-overlay" style="display: none;">
         <div class="auth-card glass-panel fade-scale">
             <p class="section-tag">Restricted Page</p>
             <h2>Authorized Access Only</h2>
@@ -50,13 +23,13 @@
         </div>
     </div>
 
-    <div id="protectedContent" class="protected-content" aria-hidden="true">
+    <div id="mainContent" class="protected-content" aria-hidden="true" style="display: none;">
         <div class="page-shell page-shell--wide">
             <header class="hero hero--split hero--compact fade-up">
                 <div class="hero-copy-block">
                     <p class="eyebrow">Operations Dashboard</p>
                     <h1>Admin Dashboard</h1>
-                    <p class="hero-copy">Track registrations, monitor gate usage, and find students quickly during the event.</p>
+                    <p class="hero-copy">Track registrations, monitor gate usage, manage attendance, and export backup-ready data during the event.</p>
                 </div>
                 <div class="nav-chips nav-chips--actions">
                     <a class="nav-chip" href="/">Registration</a>
@@ -89,9 +62,12 @@
                     <div class="panel-heading panel-heading--row">
                         <div>
                             <p class="section-tag">Controls</p>
-                            <h2>Search and Filter</h2>
+                            <h2>Search, Filter, and Export</h2>
                         </div>
-                        <button id="refreshStudents" type="button" class="secondary-button">Refresh Data</button>
+                        <div class="panel-actions">
+                            <button id="downloadCsvButton" type="button" class="secondary-button">Download CSV</button>
+                            <button id="refreshStudents" type="button" class="secondary-button">Refresh Data</button>
+                        </div>
                     </div>
 
                     <div class="dashboard-toolbar">
@@ -119,13 +95,14 @@
                                     <th>Course</th>
                                     <th>Contact</th>
                                     <th>Status</th>
+                                    <th>QR Code</th>
                                     <th>Created At</th>
                                     <th>Action</th>
                                 </tr>
                             </thead>
                             <tbody id="studentsTableBody">
                                 <tr>
-                                    <td colspan="7" class="empty-state">Loading students...</td>
+                                    <td colspan="8" class="empty-state">Loading students...</td>
                                 </tr>
                             </tbody>
                         </table>

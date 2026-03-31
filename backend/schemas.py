@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Literal
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -26,6 +26,17 @@ class VerifyQRResponse(BaseModel):
     message: str
 
 
+class EntryActionResponse(BaseModel):
+    status: Literal["VALID", "USED"]
+    message: str
+    entry_at: Optional[datetime] = None
+
+
+class ResetEntryResponse(BaseModel):
+    message: str
+    entry_at: Optional[datetime] = None
+
+
 class StudentResponse(BaseModel):
     id: int
     name: str
@@ -35,6 +46,7 @@ class StudentResponse(BaseModel):
     token: str
     is_used: bool
     created_at: datetime
+    entry_at: Optional[datetime] = None
 
     class Config:
         orm_mode = True

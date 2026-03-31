@@ -19,6 +19,17 @@ function escapeHtml(value) {
         .replaceAll("'", "&#39;");
 }
 
+function safeFileName(value) {
+    return String(value)
+        .trim()
+        .replace(/[^A-Za-z0-9_-]+/g, "_")
+        .replace(/^_+|_+$/g, "") || "student";
+}
+
+function buildStudentQrUrl(student) {
+    return `/qr_codes/${safeFileName(student.roll_no)}_${student.token}.png`;
+}
+
 function setButtonLoading(button, isLoading, loadingLabel = "Loading...") {
     if (!button) return;
 
@@ -50,25 +61,67 @@ function formatDate(value) {
     }).format(new Date(value));
 }
 
-function playBeep() {
+function playToneSequence(sequence) {
     try {
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        const oscillator = audioContext.createOscillator();
-        const gainNode = audioContext.createGain();
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContextClass) return;
 
-        oscillator.type = "sine";
-        oscillator.frequency.value = 880;
-        gainNode.gain.value = 0.08;
+        const audioContext = new AudioContextClass();
+        let currentTime = audioContext.currentTime;
 
-        oscillator.connect(gainNode);
-        gainNode.connect(audioContext.destination);
+        sequence.forEach(({ frequency, duration, type = "sine", gap = 0.05 }) => {
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
 
-        oscillator.start();
-        oscillator.stop(audioContext.currentTime + 0.12);
-        oscillator.onended = () => audioContext.close();
+            oscillator.type = type;
+            oscillator.frequency.value = frequency;
+            gainNode.gain.setValueAtTime(0.0001, currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.085, currentTime + 0.01);
+            gainNode.gain.exponentialRampToValueAtTime(0.0001, currentTime + duration);
+
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+
+            oscillator.start(currentTime);
+            oscillator.stop(currentTime + duration);
+            currentTime += duration + gap;
+        });
+
+        window.setTimeout(() => {
+            audioContext.close().catch(() => {});
+        }, Math.max((currentTime - audioContext.currentTime + 0.1) * 1000, 150));
     } catch (error) {
-        console.debug("Beep playback unavailable.", error);
+        console.debug("Audio feedback unavailable.", error);
     }
+}
+
+function vibratePattern(pattern) {
+    if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") {
+        navigator.vibrate(pattern);
+    }
+}
+
+function playScannerFeedback(status) {
+    if (status === "VALID") {
+        playToneSequence([{ frequency: 880, duration: 0.1, gap: 0.02 }]);
+        vibratePattern(80);
+        return;
+    }
+
+    if (status === "USED") {
+        playToneSequence([
+            { frequency: 540, duration: 0.1, gap: 0.03 },
+            { frequency: 420, duration: 0.12, gap: 0.02 },
+        ]);
+        vibratePattern(180);
+        return;
+    }
+
+    playToneSequence([
+        { frequency: 240, duration: 0.12, type: "square", gap: 0.03 },
+        { frequency: 180, duration: 0.24, type: "square", gap: 0.02 },
+    ]);
+    vibratePattern(320);
 }
 
 function enableSessionLockButtons() {
@@ -81,21 +134,22 @@ function enableSessionLockButtons() {
 }
 
 function protectPage(onAuthorized) {
-    const overlay = document.getElementById("authOverlay");
+    const overlay = document.getElementById("loginOverlay");
     const form = document.getElementById("authForm");
     const passwordInput = document.getElementById("authPassword");
     const error = document.getElementById("authError");
-    const protectedContent = document.getElementById("protectedContent");
+    const mainContent = document.getElementById("mainContent");
     let initialized = false;
 
-    function authorize() {
+    function showMainContent() {
         document.body.classList.add("auth-ready");
-        protectedContent?.setAttribute("aria-hidden", "false");
+        if (mainContent) {
+            mainContent.style.display = "block";
+            mainContent.setAttribute("aria-hidden", "false");
+        }
         if (overlay) {
-            overlay.classList.add("auth-overlay--hidden");
-            window.setTimeout(() => {
-                overlay.hidden = true;
-            }, 240);
+            overlay.style.display = "none";
+            overlay.hidden = true;
         }
 
         if (!initialized) {
@@ -104,24 +158,37 @@ function protectPage(onAuthorized) {
         }
     }
 
+    function showLoginOverlay() {
+        document.body.classList.remove("auth-ready");
+        if (mainContent) {
+            mainContent.style.display = "none";
+            mainContent.setAttribute("aria-hidden", "true");
+        }
+        if (overlay) {
+            overlay.hidden = false;
+            overlay.style.display = "flex";
+        }
+        window.setTimeout(() => passwordInput?.focus(), 120);
+    }
+
+    if (!overlay || !form || !passwordInput || !mainContent) {
+        showMainContent();
+        return;
+    }
+
     if (sessionStorage.getItem("auth") === "true") {
-        authorize();
+        showMainContent();
         return;
     }
 
-    if (!overlay || !form || !passwordInput) {
-        onAuthorized();
-        return;
-    }
-
-    window.setTimeout(() => passwordInput.focus(), 120);
+    showLoginOverlay();
 
     form.addEventListener("submit", (event) => {
         event.preventDefault();
         if (passwordInput.value === AUTH_PASSWORD) {
             sessionStorage.setItem("auth", "true");
             if (error) error.textContent = "";
-            authorize();
+            showMainContent();
             return;
         }
 
@@ -190,9 +257,20 @@ function setScanStatus(status, title, message) {
 
 function initScannerPage() {
     const scannerHint = document.getElementById("scannerHint");
+    const switchCameraButton = document.getElementById("switchCameraButton");
     let isVerifying = false;
     let scanLockedUntil = 0;
     let lastToken = "";
+    let html5QrCode = null;
+    let scannerActive = false;
+    let scannerBusy = false;
+    let currentFacingMode = "environment";
+
+    function setSwitchButtonState(label = "Switch Camera", disabled = false) {
+        if (!switchCameraButton) return;
+        switchCameraButton.textContent = label;
+        switchCameraButton.disabled = disabled;
+    }
 
     async function verifyToken(token) {
         const trimmedToken = token.trim();
@@ -209,7 +287,6 @@ function initScannerPage() {
         scannerHint.textContent = "QR detected. Verifying entry...";
 
         try {
-            playBeep();
             const result = await parseJsonResponse(
                 await fetch("/verify", {
                     method: "POST",
@@ -217,6 +294,8 @@ function initScannerPage() {
                     body: JSON.stringify({ token: trimmedToken }),
                 })
             );
+
+            playScannerFeedback(result.status);
 
             if (result.status === "VALID") {
                 setScanStatus("valid", "Entry Allowed", result.message);
@@ -226,9 +305,10 @@ function initScannerPage() {
                 setScanStatus("invalid", "Invalid QR", result.message);
             }
         } catch (error) {
+            playScannerFeedback("INVALID");
             setScanStatus("invalid", "Verification Failed", error.message);
         } finally {
-            scannerHint.textContent = "Scanner is active. Show the next QR code to the camera.";
+            scannerHint.textContent = `Scanner is active using the ${currentFacingMode === "environment" ? "rear" : "front"} camera.`;
             window.setTimeout(() => {
                 isVerifying = false;
                 lastToken = "";
@@ -236,16 +316,26 @@ function initScannerPage() {
         }
     }
 
-    function waitForScannerLibrary() {
-        if (typeof Html5Qrcode === "undefined") {
-            window.setTimeout(waitForScannerLibrary, 150);
+    async function startScanner() {
+        if (scannerBusy) {
             return;
         }
 
-        const html5QrCode = new Html5Qrcode("scannerViewport");
-        html5QrCode
-            .start(
-                { facingMode: "environment" },
+        scannerBusy = true;
+        setSwitchButtonState(scannerActive ? "Switching..." : "Starting...", true);
+
+        try {
+            if (!html5QrCode) {
+                html5QrCode = new Html5Qrcode("scannerViewport");
+            }
+
+            if (scannerActive) {
+                await html5QrCode.stop();
+                scannerActive = false;
+            }
+
+            await html5QrCode.start(
+                { facingMode: currentFacingMode },
                 {
                     fps: 10,
                     qrbox: (viewportWidth, viewportHeight) => {
@@ -255,15 +345,54 @@ function initScannerPage() {
                 },
                 (decodedText) => verifyToken(decodedText),
                 () => {}
-            )
-            .then(() => {
-                scannerHint.textContent = "Scanner is active. Show the QR code to the camera.";
-            })
-            .catch((error) => {
-                scannerHint.textContent = "Camera start failed. Please allow access and refresh the page.";
-                setScanStatus("invalid", "Scanner Unavailable", String(error));
-            });
+            );
+
+            scannerActive = true;
+            scannerHint.textContent = `Scanner is active using the ${currentFacingMode === "environment" ? "rear" : "front"} camera.`;
+            setScanStatus("neutral", "Waiting for scan", "Show a student QR code to the camera for instant verification.");
+        } catch (error) {
+            scannerHint.textContent = "Camera start failed. Please allow access and refresh the page.";
+            setScanStatus("invalid", "Scanner Unavailable", String(error));
+            throw error;
+        } finally {
+            scannerBusy = false;
+            setSwitchButtonState("Switch Camera", false);
+        }
     }
+
+    function waitForScannerLibrary() {
+        if (typeof Html5Qrcode === "undefined") {
+            window.setTimeout(waitForScannerLibrary, 150);
+            return;
+        }
+
+        startScanner().catch(async () => {
+            if (currentFacingMode === "environment") {
+                currentFacingMode = "user";
+                try {
+                    await startScanner();
+                } catch {
+                    scannerHint.textContent = "Unable to access a compatible camera on this device.";
+                }
+            }
+        });
+    }
+
+    switchCameraButton?.addEventListener("click", async () => {
+        const previousFacingMode = currentFacingMode;
+        currentFacingMode = previousFacingMode === "environment" ? "user" : "environment";
+
+        try {
+            await startScanner();
+        } catch (error) {
+            currentFacingMode = previousFacingMode;
+            try {
+                await startScanner();
+            } catch {
+                scannerHint.textContent = "Unable to switch camera on this device.";
+            }
+        }
+    });
 
     waitForScannerLibrary();
 }
@@ -283,32 +412,49 @@ function renderStudents(students, activeFilter) {
     });
 
     if (!filteredStudents.length) {
-        tableBody.innerHTML = '<tr><td colspan="7" class="empty-state">No students match the current filter.</td></tr>';
+        tableBody.innerHTML = '<tr><td colspan="8" class="empty-state">No students match the current filter.</td></tr>';
         return;
     }
 
     tableBody.innerHTML = filteredStudents
-        .map(
-            (student) => `
+        .map((student) => {
+            const qrUrl = buildStudentQrUrl(student);
+            return `
                 <tr>
                     <td>${escapeHtml(student.name)}</td>
                     <td>${escapeHtml(student.roll_no)}</td>
                     <td>${escapeHtml(student.course)}</td>
-                    <td>${escapeHtml(student.contact)}</td>
+                    <td class="contact-cell">${escapeHtml(student.contact)}</td>
                     <td>
                         <span class="status-badge ${student.is_used ? "used" : "not-used"}">
                             ${student.is_used ? "Used" : "Not Used"}
                         </span>
                     </td>
+                    <td class="qr-cell">
+                        <div class="qr-mini-card">
+                            <a class="qr-thumb-link" href="${qrUrl}" target="_blank" rel="noopener">
+                                <img class="qr-thumb" src="${qrUrl}" alt="QR code for ${escapeHtml(student.name)}">
+                            </a>
+                            <span class="qr-contact">${escapeHtml(student.contact)}</span>
+                        </div>
+                    </td>
                     <td>${escapeHtml(formatDate(student.created_at))}</td>
-                    <td>
-                        <button type="button" class="delete-button" data-delete-student="${student.id}">
-                            Delete
-                        </button>
+                    <td class="action-cell">
+                        <div class="action-stack">
+                            <button type="button" class="action-button action-button--success" data-manual-entry="${student.id}" ${student.is_used ? "disabled" : ""}>
+                                Mark Present
+                            </button>
+                            <button type="button" class="action-button action-button--warning" data-reset-entry="${student.id}" ${student.is_used ? "" : "disabled"}>
+                                Reset
+                            </button>
+                            <button type="button" class="action-button action-button--danger" data-delete-student="${student.id}">
+                                Delete
+                            </button>
+                        </div>
                     </td>
                 </tr>
-            `
-        )
+            `;
+        })
         .join("");
 }
 
@@ -332,57 +478,107 @@ function initAdminPage() {
     const message = document.getElementById("adminMessage");
     const searchRoll = document.getElementById("searchRoll");
     const refreshButton = document.getElementById("refreshStudents");
+    const downloadCsvButton = document.getElementById("downloadCsvButton");
     const tableBody = document.getElementById("studentsTableBody");
     const filterButtons = document.querySelectorAll(".filter-chip");
     let students = [];
     let activeFilter = "all";
 
-    async function loadStudents() {
+    async function loadStudents(successMessage = null) {
         setMessage(message, "Loading registered students...");
         refreshButton.disabled = true;
 
         try {
-            students = await parseJsonResponse(await fetch("/students"));
+            students = await parseJsonResponse(
+                await fetch("/students", { cache: "no-store" })
+            );
             updateAdminStats(students);
             renderStudents(students, activeFilter);
-            setMessage(message, `${students.length} students loaded.`, "success");
+            setMessage(message, successMessage || `${students.length} students loaded.`, "success");
         } catch (error) {
             tableBody.innerHTML =
-                '<tr><td colspan="7" class="empty-state">Unable to load student data.</td></tr>';
+                '<tr><td colspan="8" class="empty-state">Unable to load student data.</td></tr>';
             setMessage(message, error.message, "error");
         } finally {
             refreshButton.disabled = false;
         }
     }
 
+    function updateStudentState(studentId, updates) {
+        students = students.map((student) => {
+            if (String(student.id) !== String(studentId)) {
+                return student;
+            }
+            return { ...student, ...updates };
+        });
+    }
+
     tableBody.addEventListener("click", async (event) => {
-        const deleteButton = event.target.closest("[data-delete-student]");
-        if (!deleteButton) {
+        const button = event.target.closest("button[data-manual-entry], button[data-reset-entry], button[data-delete-student]");
+        if (!button) {
             return;
         }
 
-        const studentId = deleteButton.dataset.deleteStudent;
-        if (!window.confirm("Are you sure you want to delete this student?")) {
+        const studentId = button.dataset.manualEntry || button.dataset.resetEntry || button.dataset.deleteStudent;
+        const isResetAction = Boolean(button.dataset.resetEntry);
+        const isDeleteAction = Boolean(button.dataset.deleteStudent);
+
+        if (isResetAction && !window.confirm("Are you sure?")) {
             return;
         }
 
-        deleteButton.disabled = true;
-        deleteButton.textContent = "Deleting...";
+        if (isDeleteAction && !window.confirm("Are you sure you want to delete this student?")) {
+            return;
+        }
+
+        const defaultLabel = button.textContent.trim();
+        button.disabled = true;
+        button.textContent = isDeleteAction ? "Deleting..." : "Updating...";
 
         try {
+            if (button.dataset.manualEntry) {
+                const data = await parseJsonResponse(
+                    await fetch(`/manual-entry/${studentId}`, { method: "POST" })
+                );
+
+                if (data.status === "USED") {
+                    updateStudentState(studentId, { is_used: true, entry_at: data.entry_at });
+                    renderStudents(students, activeFilter);
+                    setMessage(message, data.message, "warning");
+                    return;
+                }
+
+                updateStudentState(studentId, { is_used: true, entry_at: data.entry_at });
+                renderStudents(students, activeFilter);
+                updateAdminStats(students);
+                setMessage(message, data.message, "success");
+                return;
+            }
+
+            if (button.dataset.resetEntry) {
+                const data = await parseJsonResponse(
+                    await fetch(`/reset-entry/${studentId}`, { method: "POST" })
+                );
+
+                updateStudentState(studentId, { is_used: false, entry_at: data.entry_at });
+                renderStudents(students, activeFilter);
+                updateAdminStats(students);
+                setMessage(message, data.message, "success");
+                return;
+            }
+
             const data = await parseJsonResponse(
-                await fetch(`/student/${studentId}`, {
-                    method: "DELETE",
-                })
+                await fetch(`/student/${studentId}`, { method: "DELETE" })
             );
 
-            students = students.filter((student) => String(student.id) !== studentId);
+            students = students.filter((student) => String(student.id) !== String(studentId));
             updateAdminStats(students);
             renderStudents(students, activeFilter);
             setMessage(message, data.message, "success");
+            await loadStudents(data.message);
         } catch (error) {
-            deleteButton.disabled = false;
-            deleteButton.textContent = "Delete";
+            button.disabled = false;
+            button.textContent = defaultLabel;
             setMessage(message, error.message, "error");
         }
     });
@@ -397,21 +593,32 @@ function initAdminPage() {
         });
     });
 
-    refreshButton.addEventListener("click", loadStudents);
+    refreshButton.addEventListener("click", () => loadStudents());
+    downloadCsvButton?.addEventListener("click", () => {
+        const link = document.createElement("a");
+        link.href = "/export";
+        link.download = "students_export.csv";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+    });
+
     setActiveFilterButton(activeFilter);
     loadStudents();
 }
 
-enableSessionLockButtons();
+document.addEventListener("DOMContentLoaded", () => {
+    enableSessionLockButtons();
 
-if (page === "registration") {
-    initRegistrationPage();
-}
+    if (page === "registration") {
+        protectPage(initRegistrationPage);
+    }
 
-if (page === "scanner") {
-    protectPage(initScannerPage);
-}
+    if (page === "scanner") {
+        protectPage(initScannerPage);
+    }
 
-if (page === "admin") {
-    protectPage(initAdminPage);
-}
+    if (page === "admin") {
+        protectPage(initAdminPage);
+    }
+});

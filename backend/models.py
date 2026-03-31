@@ -16,3 +16,4 @@ class Student(Base):
     token = Column(String(20), unique=True, index=True, nullable=False)
     is_used = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    entry_at = Column(DateTime, nullable=True)

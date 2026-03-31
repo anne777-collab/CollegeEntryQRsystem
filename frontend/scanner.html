@@ -8,7 +8,7 @@
     <script src="https://unpkg.com/html5-qrcode" defer></script>
 </head>
 <body data-page="scanner" class="protected-page scanner-page">
-    <div id="authOverlay" class="auth-overlay">
+    <div id="loginOverlay" class="auth-overlay" style="display: none;">
         <div class="auth-card glass-panel fade-scale">
             <p class="section-tag">Restricted Page</p>
             <h2>Authorized Access Only</h2>
@@ -24,7 +24,7 @@
         </div>
     </div>
 
-    <div id="protectedContent" class="protected-content" aria-hidden="true">
+    <div id="mainContent" class="protected-content" aria-hidden="true" style="display: none;">
         <div class="page-shell page-shell--wide">
             <header class="hero hero--split hero--compact fade-up">
                 <div class="hero-copy-block">
@@ -47,7 +47,10 @@
                             <p class="section-tag">Live Scanner</p>
                             <h2>Camera Preview</h2>
                         </div>
-                        <div class="live-pill">Live</div>
+                        <div class="scanner-controls">
+                            <div class="live-pill">Live</div>
+                            <button id="switchCameraButton" type="button" class="secondary-button secondary-button--compact">Switch Camera</button>
+                        </div>
                     </div>
                     <div id="scannerViewport" class="scanner-viewport"></div>
                     <div id="scannerHint" class="inline-meta">Allow camera access to begin scanning.</div>
@@ -63,7 +66,7 @@
                         <h3 id="scanTitle">Waiting for scan</h3>
                         <p id="scanMessage">The scanned QR token will be checked instantly against the existing entry system.</p>
                     </div>
-                    <div class="scanner-note">Beep enabled. Scan lock prevents repeated triggers while a result is being processed.</div>
+                    <div class="scanner-note">Sound and vibration feedback are enabled. Scan lock still prevents repeated triggers while a result is being processed.</div>
                 </section>
             </main>
         </div>
