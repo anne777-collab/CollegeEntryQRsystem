@@ -24,7 +24,7 @@
     </div>
 
     <div id="mainContent" class="protected-content" aria-hidden="true" style="display: none;">
-        <div class="page-shell page-shell--wide">
+        <div class="page-shell page-shell--wide container">
             <header class="hero hero--split hero--compact fade-up">
                 <div class="hero-copy-block">
                     <p class="eyebrow">Operations Dashboard</p>
@@ -39,32 +39,32 @@
                 </div>
             </header>
 
-            <main class="dashboard-grid">
-                <section class="stats-grid fade-up">
-                    <article class="glass-panel stat-card">
+            <main class="dashboard-grid dashboard">
+                <section class="stats-grid stats-cards fade-up">
+                    <article class="glass-panel stat-card card">
                         <span>Total Students</span>
                         <strong id="statTotal">0</strong>
                         <p>Registered passes created</p>
                     </article>
-                    <article class="glass-panel stat-card">
+                    <article class="glass-panel stat-card card">
                         <span>Used Entries</span>
                         <strong id="statUsed">0</strong>
                         <p>Students already checked in</p>
                     </article>
-                    <article class="glass-panel stat-card">
+                    <article class="glass-panel stat-card card">
                         <span>Remaining Entries</span>
                         <strong id="statRemaining">0</strong>
                         <p>Passes still available to scan</p>
                     </article>
                 </section>
 
-                <section class="glass-panel controls-panel fade-up fade-up--delay">
+                <section class="glass-panel controls-panel fade-up fade-up--delay card">
                     <div class="panel-heading panel-heading--row">
                         <div>
                             <p class="section-tag">Controls</p>
                             <h2>Search, Filter, and Export</h2>
                         </div>
-                        <div class="panel-actions">
+                        <div class="panel-actions button-group">
                             <button id="downloadCsvButton" type="button" class="secondary-button">Download CSV</button>
                             <button id="refreshStudents" type="button" class="secondary-button">Refresh Data</button>
                         </div>
@@ -85,7 +85,7 @@
                     <div id="adminMessage" class="inline-message" aria-live="polite"></div>
                 </section>
 
-                <section class="glass-panel table-panel fade-up fade-up--delay-2">
+                <section class="glass-panel table-panel fade-up fade-up--delay-2 card">
                     <div class="table-wrap">
                         <table>
                             <thead>
@@ -115,3 +115,4 @@
     <script src="/static/script.js"></script>
 </body>
 </html>
+
