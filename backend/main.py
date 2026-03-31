@@ -69,8 +69,6 @@ app = FastAPI(
     version="1.0.0",
 )
 
-app.mount("/frontend", StaticFiles(directory="frontend"), name="frontend")
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -84,17 +82,17 @@ app.mount("/qr_codes", StaticFiles(directory=str(QR_CODES_DIR)), name="qr_codes"
 
 
 @app.get("/", include_in_schema=False)
-def serve_index() -> FileResponse:
+def serve_index():
     return FileResponse(FRONTEND_DIR / "index.html")
 
 
 @app.get("/scanner", include_in_schema=False)
-def serve_scanner() -> FileResponse:
+def serve_scanner():
     return FileResponse(FRONTEND_DIR / "scanner.html")
 
 
 @app.get("/admin", include_in_schema=False)
-def serve_admin() -> FileResponse:
+def serve_admin():
     return FileResponse(FRONTEND_DIR / "admin.html")
 
 
