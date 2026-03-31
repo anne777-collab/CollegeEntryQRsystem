@@ -77,23 +77,23 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR)), name="static")
-app.mount("/qr_codes", StaticFiles(directory=str(QR_CODES_DIR)), name="qr_codes")
+app.mount("/static", StaticFiles(directory="frontend"), name="static")
+app.mount("/qr_codes", StaticFiles(directory="qr_codes"), name="qr_codes")
 
 
 @app.get("/", include_in_schema=False)
 def serve_index():
-    return FileResponse(FRONTEND_DIR / "index.html")
+    return FileResponse(BASE_DIR / "frontend" / "index.html")
 
 
 @app.get("/scanner", include_in_schema=False)
 def serve_scanner():
-    return FileResponse(FRONTEND_DIR / "scanner.html")
+    return FileResponse(BASE_DIR / "frontend" / "scanner.html")
 
 
 @app.get("/admin", include_in_schema=False)
 def serve_admin():
-    return FileResponse(FRONTEND_DIR / "admin.html")
+    return FileResponse(BASE_DIR / "frontend" / "admin.html")
 
 
 @app.get("/health")
@@ -316,4 +316,5 @@ def delete_student(student_id: int, db: Session = Depends(get_db)) -> dict:
         ) from exc
 
     return {"message": "Student deleted successfully."}
+
 
